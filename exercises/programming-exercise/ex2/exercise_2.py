@@ -6,37 +6,77 @@ import pulp
 
 ##### Exercise 2.1 #####
 
+
 # Sherali-Adams linearization
 def convert_to_ilp(nodes, edges):
-    ilp = pulp.LpProblem('GM')
+    ilp = pulp.LpProblem("GM")
     # populate ILP
     return ilp
 
 
 # Fortet linearization
 def convert_to_ilp_fortet(nodes, edges):
-    ilp = pulp.LpProblem('GM')
-    # populate ILP
-    return ilp
+    ilp = pulp.LpProblem("GM")
+    obj = pulp.LpAffineExpression()
+    orig_vars = {}
+    for i, node in enumerate(nodes):
+        total = pulp.LpAffineExpression()
+        for label, cost in enumerate(node.costs):
+            var = pulp.LpVariable(
+                "node:%d;label:%d" % (i, label),
+                lowBound=0,
+                upBound=1,
+                cat=pulp.LpBinary,
+            )
+            obj += var * cost
+            total += var
+            orig_vars[(i, label)] = var
+        ilp += total == 1
+
+    for i, edge in enumerate(edges):
+        for (label_left, label_right), cost in edge.costs.items():
+            var = pulp.LpVariable(
+                "edge:%d,%d;labels:%d,%d"
+                % (edge.left, edge.right, label_left, label_right),
+                lowBound=0,
+                upBound=1,
+                cat=pulp.LpBinary,
+            )
+            obj += var * cost
+
+            # fortet
+            right = orig_vars[edge.left, label_left]
+            left = orig_vars[edge.right, label_right]
+            ilp += var <= left
+            ilp += var <= right
+            ilp += var >= (left + right - 1)
+
+    ilp.setObjective(obj)
+    return ilp, (orig_vars,)
 
 
-def ilp_to_labeling(nodes, edges, ilp):
+def ilp_to_labeling(nodes, edges, lp, args):
+    vars = args[0]
     labeling = []
-    # compute labeling
+    for i, node in enumerate(nodes):
+        for label in range(len(node.costs)):
+            if pulp.value(vars[i, label]) == 1:
+                labeling.append(label)
+                break
     return labeling
 
 
 ##### Exercise 2.2 #####
 # Relaxed Sherali-Adams linearization
 def convert_to_lp(nodes, edges):
-    lp = pulp.LpProblem('GM')
+    lp = pulp.LpProblem("GM")
     # populate LP
     return lp
 
 
 # Relaxed Fortet linearization
 def convert_to_lp_fortet(nodes, edges):
-    lp = pulp.LpProblem('GM')
+    lp = pulp.LpProblem("GM")
     # populate LP
     return lp
 
