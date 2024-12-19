@@ -7,15 +7,7 @@ import pulp
 ##### Exercise 2.1 #####
 
 
-# Sherali-Adams linearization
-def convert_to_ilp(nodes, edges):
-    ilp = pulp.LpProblem("GM")
-    # populate ILP
-    return ilp
-
-
-# Fortet linearization
-def convert_to_ilp_fortet(nodes, edges):
+def __convert_to_ilp(nodes, edges):
     ilp = pulp.LpProblem("GM")
     obj = pulp.LpAffineExpression()
     orig_vars = {}
@@ -33,6 +25,7 @@ def convert_to_ilp_fortet(nodes, edges):
             orig_vars[(i, label)] = var
         ilp += total == 1
 
+    lift_vars = {}
     for i, edge in enumerate(edges):
         for (label_left, label_right), cost in edge.costs.items():
             var = pulp.LpVariable(
@@ -43,15 +36,28 @@ def convert_to_ilp_fortet(nodes, edges):
                 cat=pulp.LpBinary,
             )
             obj += var * cost
-
-            # fortet
-            right = orig_vars[edge.left, label_left]
-            left = orig_vars[edge.right, label_right]
-            ilp += var <= left
-            ilp += var <= right
-            ilp += var >= (left + right - 1)
+            lift_vars[((edge.left, label_left), (edge.right, label_right))] = var
 
     ilp.setObjective(obj)
+    return ilp, (orig_vars, lift_vars)
+
+
+# Sherali-Adams linearization
+def convert_to_ilp(nodes, edges):
+    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
+    # populate ILP
+    return ilp
+
+
+# Fortet linearization
+def convert_to_ilp_fortet(nodes, edges):
+    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
+    for (left, right), var in lift_vars.items():
+        left_var = orig_vars[left]
+        right_var = orig_vars[right]
+        ilp += var <= left_var
+        ilp += var <= right_var
+        ilp += var >= (left_var + right_var - 1)
     return ilp, (orig_vars,)
 
 
