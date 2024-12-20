@@ -8,7 +8,10 @@ import pulp
 ##### Exercise 2.1 #####
 
 
-def __convert_to_ilp(nodes, edges):
+def __convert_to_ilp(nodes, edges, relaxed=False):
+    cat = pulp.LpBinary
+    if relaxed:
+        cat = pulp.LpContinuous
     ilp = pulp.LpProblem("GM")
     obj = pulp.LpAffineExpression()
     orig_vars = {}
@@ -19,7 +22,7 @@ def __convert_to_ilp(nodes, edges):
                 "node:%d;label:%d" % (i, label),
                 lowBound=0,
                 upBound=1,
-                cat=pulp.LpBinary,
+                cat=cat,
             )
             obj += var * cost
             total += var
@@ -34,7 +37,7 @@ def __convert_to_ilp(nodes, edges):
                 % (edge.left, edge.right, label_left, label_right),
                 lowBound=0,
                 upBound=1,
-                cat=pulp.LpBinary,
+                cat=cat,
             )
             obj += var * cost
             lift_vars[(edge.left, label_left), (edge.right, label_right)] = var
@@ -44,8 +47,8 @@ def __convert_to_ilp(nodes, edges):
 
 
 # Sherali-Adams linearization
-def convert_to_ilp(nodes, edges):
-    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
+def convert_to_ilp(nodes, edges, relaxed=False):
+    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges, relaxed)
     sums = defaultdict(lambda: defaultdict(lambda: pulp.LpAffineExpression()))
     # sums = (node, label) -> other_node -> expr
     for (left, right), var in lift_vars.items():
@@ -58,8 +61,8 @@ def convert_to_ilp(nodes, edges):
 
 
 # Fortet linearization
-def convert_to_ilp_fortet(nodes, edges):
-    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
+def convert_to_ilp_fortet(nodes, edges, relaxed=False):
+    ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges, relaxed)
     for (left, right), var in lift_vars.items():
         left_var = orig_vars[left]
         right_var = orig_vars[right]
@@ -73,29 +76,27 @@ def ilp_to_labeling(nodes, edges, lp, args):
     vars = args[0]
     labeling = []
     for i, node in enumerate(nodes):
+        max = 0
+        argmax = None
         for label in range(len(node.costs)):
-            if pulp.value(vars[i, label]) == 1:
-                labeling.append(label)
-                break
+            cur = pulp.value(vars[i, label])
+            if cur > max:
+                max = cur
+                argmax = label
+        labeling.append(argmax)
     return labeling
 
 
 ##### Exercise 2.2 #####
 # Relaxed Sherali-Adams linearization
 def convert_to_lp(nodes, edges):
-    lp = pulp.LpProblem("GM")
-    # populate LP
-    return lp
+    return convert_to_ilp(nodes, edges, relaxed=True)
 
 
 # Relaxed Fortet linearization
 def convert_to_lp_fortet(nodes, edges):
-    lp = pulp.LpProblem("GM")
-    # populate LP
-    return lp
+    return convert_to_ilp_fortet(nodes, edges, relaxed=True)
 
 
-def lp_to_labeling(nodes, edges, lp):
-    labeling = []
-    # compute labeling
-    return labeling
+def lp_to_labeling(nodes, edges, lp, args):
+    return ilp_to_labeling(nodes, edges, lp, args)
