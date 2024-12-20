@@ -2,6 +2,7 @@
 #
 # Author: Your Name <your@email.com>
 
+from collections import defaultdict
 import pulp
 
 ##### Exercise 2.1 #####
@@ -36,7 +37,9 @@ def __convert_to_ilp(nodes, edges):
                 cat=pulp.LpBinary,
             )
             obj += var * cost
-            lift_vars[((edge.left, label_left), (edge.right, label_right))] = var
+            left = orig_vars[edge.left, label_left]
+            right = orig_vars[edge.right, label_right]
+            lift_vars[left, right] = var
 
     ilp.setObjective(obj)
     return ilp, (orig_vars, lift_vars)
@@ -45,19 +48,22 @@ def __convert_to_ilp(nodes, edges):
 # Sherali-Adams linearization
 def convert_to_ilp(nodes, edges):
     ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
-    # populate ILP
-    return ilp
+    sums = defaultdict(lambda: pulp.LpAffineExpression())
+    for (left, right), var in lift_vars.items():
+        sums[left] += var
+        # sums[right] += var
+    for lhs, rhs in sums.items():
+        ilp += lhs == rhs
+    return ilp, (orig_vars,)
 
 
 # Fortet linearization
 def convert_to_ilp_fortet(nodes, edges):
     ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
     for (left, right), var in lift_vars.items():
-        left_var = orig_vars[left]
-        right_var = orig_vars[right]
-        ilp += var <= left_var
-        ilp += var <= right_var
-        ilp += var >= (left_var + right_var - 1)
+        ilp += var <= left
+        ilp += var <= right
+        ilp += var >= (left + right - 1)
     return ilp, (orig_vars,)
 
 
