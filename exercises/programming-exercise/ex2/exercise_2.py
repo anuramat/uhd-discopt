@@ -37,9 +37,7 @@ def __convert_to_ilp(nodes, edges):
                 cat=pulp.LpBinary,
             )
             obj += var * cost
-            left = orig_vars[edge.left, label_left]
-            right = orig_vars[edge.right, label_right]
-            lift_vars[left, right] = var
+            lift_vars[(edge.left, label_left), (edge.right, label_right)] = var
 
     ilp.setObjective(obj)
     return ilp, (orig_vars, lift_vars)
@@ -48,12 +46,14 @@ def __convert_to_ilp(nodes, edges):
 # Sherali-Adams linearization
 def convert_to_ilp(nodes, edges):
     ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
-    sums = defaultdict(lambda: pulp.LpAffineExpression())
+    sums = defaultdict(lambda: defaultdict(lambda: pulp.LpAffineExpression()))
+    # sums = (node, label) -> other_node -> expr
     for (left, right), var in lift_vars.items():
-        sums[left] += var
-        # sums[right] += var
-    for lhs, rhs in sums.items():
-        ilp += lhs == rhs
+        sums[left][right[0]] += var
+        sums[right][left[0]] += var
+    for this, others in sums.items():
+        for expr in others.values():
+            ilp += orig_vars[this] == expr
     return ilp, (orig_vars,)
 
 
@@ -61,9 +61,11 @@ def convert_to_ilp(nodes, edges):
 def convert_to_ilp_fortet(nodes, edges):
     ilp, (orig_vars, lift_vars) = __convert_to_ilp(nodes, edges)
     for (left, right), var in lift_vars.items():
-        ilp += var <= left
-        ilp += var <= right
-        ilp += var >= (left + right - 1)
+        left_var = orig_vars[left]
+        right_var = orig_vars[right]
+        ilp += var <= left_var
+        ilp += var <= right_var
+        ilp += var >= (left_var + right_var - 1)
     return ilp, (orig_vars,)
 
 
